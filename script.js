@@ -7,7 +7,14 @@ const qrReaderContainer = document.getElementById('qr-reader');
 let html5QrCode;
 let isScanning = false; // Control para saber si estamos escaneando
 
-startScanBtn.addEventListener('click', () => {
+// Función para obtener la cámara trasera (si está disponible)
+async function getBackCamera() {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const videoDevice = devices.find(device => device.kind === 'videoinput' && device.facing == 'environment');
+    return videoDevice ? { deviceId: videoDevice.deviceId } : null;
+}
+
+startScanBtn.addEventListener('click', async () => {
     if (isScanning) {
         // Detener el escáner si ya está en funcionamiento
         html5QrCode.stop().then(() => {
@@ -23,9 +30,12 @@ startScanBtn.addEventListener('click', () => {
             html5QrCode = new Html5Qrcode("qr-reader");
         }
 
+        const backCamera = await getBackCamera();
+        const constraints = backCamera ? { deviceId: backCamera.deviceId } : { facingMode: "environment" };
+
         html5QrCode
             .start(
-                { facingMode: "environment" }, // Usar la cámara trasera
+                constraints, // Usar la cámara trasera si está disponible
                 {
                     fps: 10, // Cuadros por segundo
                     qrbox: 250 // Tamaño del cuadro de escaneo
