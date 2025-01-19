@@ -13,6 +13,7 @@
         <button id="captureButton">Capturar Foto</button>
         <button id="viewPhotosButton">Ver Fotos Capturadas</button>
         <button id="viewMapButton">Ver Mapa Mundial</button>
+        <button id="toggleCameraButton">Cambiar Cámara</button> <!-- Botón para cambiar de cámara -->
     </div>
 
     <script>
@@ -20,11 +21,22 @@
         const captureButton = document.getElementById("captureButton");
         const viewPhotosButton = document.getElementById("viewPhotosButton");
         const viewMapButton = document.getElementById("viewMapButton");
+        const toggleCameraButton = document.getElementById("toggleCameraButton");
+
+        let currentCamera = "environment"; // Cámara trasera por defecto
+        let currentStream = null;
 
         // Iniciar la cámara
-        async function startCamera() {
+        async function startCamera(camera = "environment") {
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                // Detener la cámara actual si existe
+                if (currentStream) {
+                    const tracks = currentStream.getTracks();
+                    tracks.forEach(track => track.stop());
+                }
+
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: camera } });
+                currentStream = stream;
                 video.srcObject = stream;
             } catch (error) {
                 alert("Error al acceder a la cámara: " + error.message);
@@ -87,8 +99,14 @@
             window.location.href = "map.html"; // Redirige a la página del mapa
         });
 
-        // Iniciar la cámara al cargar la página
-        startCamera();
+        // Cambiar entre las cámaras (frontal y trasera)
+        toggleCameraButton.addEventListener("click", () => {
+            currentCamera = (currentCamera === "environment") ? "user" : "environment"; // Cambia entre "user" y "environment"
+            startCamera(currentCamera); // Reinicia la cámara con la nueva configuración
+        });
+
+        // Iniciar la cámara al cargar la página (usando la cámara trasera por defecto)
+        startCamera("environment");
     </script>
 </body>
 </html>
