@@ -1,111 +1,148 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fotos Capturadas</title>
-    <link rel="stylesheet" href="style.css">
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: #f0f0f0;
-        }
-        h1 {
-            text-align: center;
-            margin-bottom: 20px;
-        }
-        .photo-container {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 20px;
-            justify-content: center;
-        }
-        .photo-item {
-            text-align: center;
-            max-width: 200px;
-        }
-        .photo {
-            border: 5px solid #333;
-            border-radius: 8px;
-            width: 200px;
-            height: auto;
-        }
-        .photo-info {
-            margin-top: 10px;
-            font-size: 14px;
-            color: #555;
-        }
-        .buttons-container {
-            text-align: center;
-            margin-top: 20px;
-        }
-        button {
-            padding: 10px 20px;
-            font-size: 16px;
-            background-color: #ff4c4c;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-        }
-        button:hover {
-            background-color: #e63939;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fotos Capturadas</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.0/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+<style>
+    body { font-family: 'Arial', sans-serif; background: #f8f4f0; color: #333; margin: 0; padding: 20px; }
+    h1, h2, h3 { text-align: center; }
+    .buttons-container { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-bottom: 20px; }
+    button { padding: 10px 20px; border-radius: 12px; border: none; cursor: pointer; background: #d8b4d8; color: #fff; font-weight: bold; transition: 0.2s; }
+    button:hover { background: #c099c0; }
+    .folder { border: 2px solid #d8b4d8; border-radius: 12px; margin: 10px auto; padding: 10px; max-width: 90%; background: #fff0f5; }
+    .month { border: 1px dashed #d8b4d8; border-radius: 8px; margin: 8px 0; padding: 8px; }
+    .photo-container { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-start; }
+    .photo-item { position: relative; display: inline-block; }
+    .photo-item img { width: 120px; height: auto; border-radius: 8px; cursor: pointer; transition: transform 0.2s, border 0.2s; }
+    .photo-item img:hover { transform: scale(1.05); }
+    .photo-item img.selected { border: 4px solid #a855f7; box-shadow: 0 0 12px rgba(168,85,247,0.5); }
+    .photo-info { text-align: center; font-size: 0.8rem; color: #555; margin-top: 4px; }
+</style>
 </head>
 <body>
-    <h1>Fotos Capturadas</h1>
-    <div class="photo-container" id="photoContainer"></div>
-    <div class="buttons-container">
-        <button id="clearPhotosBtn">Borrar todas las fotos</button>
-    </div>
 
-    <script>
-        const photoContainer = document.getElementById('photoContainer');
-        const clearPhotosBtn = document.getElementById('clearPhotosBtn');
-        const storedPhotos = JSON.parse(localStorage.getItem('photos')) || [];
+<h1>Fotos Capturadas</h1>
 
-        // Mostrar fotos almacenadas
-        function renderPhotos() {
-            photoContainer.innerHTML = '';
-            if (storedPhotos.length === 0) {
-                photoContainer.innerHTML = '<p>No hay fotos capturadas.</p>';
-            } else {
-                storedPhotos.forEach(({ photo, location }, index) => {
-                    const photoItem = document.createElement('div');
-                    photoItem.classList.add('photo-item');
+<div class="buttons-container">
+    <button id="selectAllButton">Seleccionar todo</button>
+    <button id="downloadButton">Descargar seleccionadas</button>
+    <button id="clearPhotosBtn">Borrar todas las fotos</button>
+    <button id="homeButton">Volver al inicio</button>
+</div>
 
-                    const img = document.createElement('img');
-                    img.src = photo;
-                    img.alt = 'Foto capturada';
-                    img.classList.add('photo');
+<div id="photoContainer"></div>
 
-                    const info = document.createElement('div');
-                    info.textContent = location;
-                    info.classList.add('photo-info');
+<script>
+const photoContainer = document.getElementById('photoContainer');
+const storedPhotos = JSON.parse(localStorage.getItem('photos')) || [];
 
-                    photoItem.appendChild(img);
-                    photoItem.appendChild(info);
-                    photoContainer.appendChild(photoItem);
-                });
-            }
-        }
+// Organizar fotos por año y mes
+function organizePhotos() {
+    const organized = {};
+    storedPhotos.forEach(photo => {
+        const date = new Date(photo.timestamp || Date.now());
+        const year = date.getFullYear();
+        const month = date.toLocaleString('es', { month: 'long' });
 
-        // Borrar todas las fotos
-        clearPhotosBtn.addEventListener('click', () => {
-            const confirmDelete = confirm('¿Estás seguro de que quieres borrar todas las fotos?');
-            if (confirmDelete) {
-                localStorage.removeItem('photos');
-                storedPhotos.length = 0;
-                renderPhotos();
-                alert('Se han borrado todas las fotos.');
-            }
+        if (!organized[year]) organized[year] = {};
+        if (!organized[year][month]) organized[year][month] = [];
+        organized[year][month].push(photo);
+    });
+    return organized;
+}
+
+// Renderizar fotos como "carpetas"
+function renderPhotos() {
+    photoContainer.innerHTML = '';
+    const organized = organizePhotos();
+
+    if (storedPhotos.length === 0) {
+        photoContainer.innerHTML = '<p>No hay fotos capturadas.</p>';
+        return;
+    }
+
+    Object.keys(organized).sort((a,b)=>b-a).forEach(year => {
+        const yearFolder = document.createElement('div');
+        yearFolder.classList.add('folder');
+        const yearTitle = document.createElement('h2');
+        yearTitle.textContent = `Año: ${year}`;
+        yearFolder.appendChild(yearTitle);
+
+        Object.keys(organized[year]).forEach(month => {
+            const monthFolder = document.createElement('div');
+            monthFolder.classList.add('month');
+            const monthTitle = document.createElement('h3');
+            monthTitle.textContent = month;
+            monthFolder.appendChild(monthTitle);
+
+            organized[year][month].forEach((photo, index) => {
+                const photoItem = document.createElement('div');
+                photoItem.classList.add('photo-item');
+
+                const img = document.createElement('img');
+                img.src = photo.photo;
+                img.classList.add('gallery-photo');
+                img.addEventListener('click', () => img.classList.toggle('selected'));
+
+                const info = document.createElement('div');
+                info.classList.add('photo-info');
+                info.textContent = photo.location || '';
+
+                photoItem.appendChild(img);
+                photoItem.appendChild(info);
+                monthFolder.appendChild(photoItem);
+            });
+
+            yearFolder.appendChild(monthFolder);
         });
 
-        // Renderizar fotos al cargar
+        photoContainer.appendChild(yearFolder);
+    });
+}
+
+// Descargar fotos seleccionadas
+function downloadSelected() {
+    const selected = document.querySelectorAll('.gallery-photo.selected');
+    if (selected.length === 0) return alert('Selecciona al menos una foto.');
+
+    const zip = new JSZip();
+    selected.forEach((img, i) => {
+        const base64 = img.src.split(',')[1];
+        zip.file(`foto_${i+1}.png`, base64, { base64: true });
+    });
+
+    zip.generateAsync({ type: 'blob' }).then(content => {
+        saveAs(content, 'fotos_seleccionadas.zip');
+    });
+}
+
+// Botones
+document.getElementById('selectAllButton').addEventListener('click', () => {
+    document.querySelectorAll('.gallery-photo').forEach(img => img.classList.add('selected'));
+});
+
+document.getElementById('downloadButton').addEventListener('click', downloadSelected);
+
+document.getElementById('clearPhotosBtn').addEventListener('click', () => {
+    if (confirm('¿Estás seguro de que quieres borrar todas las fotos?')) {
+        localStorage.removeItem('photos');
+        storedPhotos.length = 0;
         renderPhotos();
-    </script>
+        alert('Se han borrado todas las fotos.');
+    }
+});
+
+document.getElementById('homeButton').addEventListener('click', () => {
+    window.location.href = 'index.html';
+});
+
+// Inicializar
+renderPhotos();
+</script>
+
 </body>
 </html>

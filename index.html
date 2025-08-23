@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Escáner QR y Captura de Fotos</title>
     <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/exif-js"></script>
 </head>
 <body>
     <h1>VIAJES, FOTOS Y MUCHO AMOR</h1>
@@ -13,7 +14,9 @@
         <button id="captureButton">Capturar Foto</button>
         <button id="viewPhotosButton">Ver Fotos Capturadas</button>
         <button id="viewMapButton">Ver Mapa Mundial</button>
-        <button id="toggleCameraButton">Cambiar Cámara</button> <!-- Botón para cambiar de cámara -->
+        <button id="toggleCameraButton">Cambiar Cámara</button>
+        <input type="file" id="uploadInput" accept="image/*" style="display:none;">
+        <button id="uploadButton">Subir Foto</button>
     </div>
 
     <script>
@@ -22,6 +25,8 @@
         const viewPhotosButton = document.getElementById("viewPhotosButton");
         const viewMapButton = document.getElementById("viewMapButton");
         const toggleCameraButton = document.getElementById("toggleCameraButton");
+        const uploadInput = document.getElementById("uploadInput");
+        const uploadButton = document.getElementById("uploadButton");
 
         let currentCamera = "environment"; // Cámara trasera por defecto
         let currentStream = null;
@@ -74,19 +79,25 @@
             canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
             const photoData = canvas.toDataURL("image/png");
 
+            let latitude = null;
+            let longitude = null;
+            let locationName = "Sin ubicación";
+
             try {
-                const { latitude, longitude, street, city } = await getCoordinatesAndAddress();
-                const locationName = `Lat: ${latitude}, Lon: ${longitude} (${street}, ${city})`;
-
-                // Guardar las fotos en el localStorage
-                const storedPhotos = JSON.parse(localStorage.getItem("photos")) || [];
-                storedPhotos.push({ photo: photoData, coordinates: { latitude, longitude }, location: locationName });
-                localStorage.setItem("photos", JSON.stringify(storedPhotos));
-
-                alert("Foto capturada y guardada con ubicación.");
+                const { latitude: lat, longitude: lon, street, city } = await getCoordinatesAndAddress();
+                latitude = lat;
+                longitude = lon;
+                locationName = `Lat: ${latitude}, Lon: ${longitude} (${street}, ${city})`;
             } catch (error) {
-                alert("No se pudo obtener la ubicación: " + error.message);
+                locationName = "Sin ubicación";
             }
+
+            // Guardar las fotos en el localStorage
+            const storedPhotos = JSON.parse(localStorage.getItem("photos")) || [];
+            storedPhotos.push({ photo: photoData, coordinates: { latitude, longitude }, location: locationName });
+            localStorage.setItem("photos", JSON.stringify(storedPhotos));
+
+            alert("Foto capturada y guardada.");
         });
 
         // Ver fotos capturadas
@@ -103,6 +114,53 @@
         toggleCameraButton.addEventListener("click", () => {
             currentCamera = (currentCamera === "environment") ? "user" : "environment"; // Cambia entre "user" y "environment"
             startCamera(currentCamera); // Reinicia la cámara con la nueva configuración
+        });
+
+        // Subir foto desde el dispositivo
+        uploadButton.addEventListener("click", () => {
+            uploadInput.click();
+        });
+
+        uploadInput.addEventListener("change", function() {
+            const file = this.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    EXIF.getData(img, function() {
+                        const lat = EXIF.getTag(this, "GPSLatitude");
+                        const lon = EXIF.getTag(this, "GPSLongitude");
+                        const latRef = EXIF.getTag(this, "GPSLatitudeRef") || "N";
+                        const lonRef = EXIF.getTag(this, "GPSLongitudeRef") || "E";
+
+                        function toDecimal(coord, ref) {
+                            if (!coord) return null;
+                            let decimal = coord[0] + coord[1]/60 + coord[2]/3600;
+                            return (ref === "S" || ref === "W") ? -decimal : decimal;
+                        }
+
+                        const latitude = toDecimal(lat, latRef);
+                        const longitude = toDecimal(lon, lonRef);
+
+                        const photoData = e.target.result;
+                        let locationName = "Sin coordenadas EXIF";
+                        if (latitude && longitude) {
+                            locationName = `Lat: ${latitude}, Lon: ${longitude}`;
+                        }
+
+                        // Guardar la foto en localStorage
+                        const storedPhotos = JSON.parse(localStorage.getItem("photos")) || [];
+                        storedPhotos.push({ photo: photoData, coordinates: { latitude, longitude }, location: locationName });
+                        localStorage.setItem("photos", JSON.stringify(storedPhotos));
+
+                        alert("Foto subida y guardada. " + locationName);
+                    });
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
         });
 
         // Iniciar la cámara al cargar la página (usando la cámara trasera por defecto)

@@ -10,15 +10,41 @@
             height: 100vh;
             width: 100%;
         }
+        .home-btn {
+            position: absolute;
+            top: 28px;
+            right: 28px; /* Cambiado de left a right */
+            z-index: 1000;
+            background: linear-gradient(90deg, #9fd5c9, #c9b6e4, #f7cde1);
+            color: #fff;
+            font-weight: 700;
+            border: none;
+            border-radius: 40px;
+            padding: 12px 32px;
+            font-size: 1.1rem;
+            box-shadow: 0 4px 18px rgba(0,0,0,0.18);
+            cursor: pointer;
+            transition: background 0.3s, transform 0.2s;
+            text-shadow: 0 2px 8px rgba(0,0,0,0.18);
+        }
+        .home-btn:hover {
+            background: linear-gradient(90deg, #f7cde1, #c9b6e4, #9fd5c9);
+            transform: scale(1.08);
+        }
     </style>
 </head>
 <body>
 
     <h1>Mapa Mundial</h1>
+    <button id="homeButton" class="home-btn">Volver al inicio</button>
     <div id="map"></div>
 
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     <script>
+        document.getElementById("homeButton").onclick = function() {
+            window.location.href = "index.html";
+        };
+
         // Crear un mapa centrado en el mundo
         const map = L.map('map').setView([0, 0], 2); // Coordenadas [lat, long] y zoom nivel 2 para mapa mundial
 
