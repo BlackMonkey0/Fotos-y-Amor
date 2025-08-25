@@ -11,8 +11,20 @@
     body { font-family: 'Arial', sans-serif; background: #f8f4f0; color: #333; margin: 0; padding: 20px; }
     h1, h2, h3 { text-align: center; }
     .buttons-container { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-bottom: 20px; }
-    button { padding: 10px 20px; border-radius: 12px; border: none; cursor: pointer; background: #d8b4d8; color: #fff; font-weight: bold; transition: 0.2s; }
-    button:hover { background: #c099c0; }
+    button, label.upload-btn { 
+        padding: 10px 20px; 
+        border-radius: 12px; 
+        border: none; 
+        cursor: pointer; 
+        background: #d8b4d8; 
+        color: #fff; 
+        font-weight: bold; 
+        transition: 0.2s; 
+        display: inline-block;
+        text-align: center;
+    }
+    button:hover, label.upload-btn:hover { background: #c099c0; }
+    input[type="file"] { display: none; }
     .folder { border: 2px solid #d8b4d8; border-radius: 12px; margin: 10px auto; padding: 10px; max-width: 90%; background: #fff0f5; }
     .month { border: 1px dashed #d8b4d8; border-radius: 8px; margin: 8px 0; padding: 8px; }
     .photo-container { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-start; }
@@ -28,6 +40,8 @@
 <h1>Fotos Capturadas</h1>
 
 <div class="buttons-container">
+    <label for="uploadInput" class="upload-btn">📂 Añadir fotos</label>
+    <input type="file" id="uploadInput" accept="image/*" multiple>
     <button id="selectAllButton">Seleccionar todo</button>
     <button id="downloadButton">Descargar seleccionadas</button>
     <button id="clearPhotosBtn">Borrar todas las fotos</button>
@@ -38,7 +52,43 @@
 
 <script>
 const photoContainer = document.getElementById('photoContainer');
-const storedPhotos = JSON.parse(localStorage.getItem('photos')) || [];
+let storedPhotos = JSON.parse(localStorage.getItem('photos')) || [];
+const uploadInput = document.getElementById('uploadInput');
+
+// Subir fotos desde archivos locales
+uploadInput.addEventListener('change', (event) => {
+    const files = event.target.files;
+    for (let file of files) {
+        const reader = new FileReader();
+        reader.onload = (e) => savePhoto(e.target.result);
+        reader.readAsDataURL(file);
+    }
+});
+
+// Guardar foto en localStorage
+function savePhoto(photoData) {
+    // Intentar guardar coordenadas (si el navegador da permiso)
+    navigator.geolocation.getCurrentPosition(
+        (pos) => {
+            const coords = `${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`;
+            addPhoto(photoData, coords);
+        },
+        () => {
+            addPhoto(photoData, "");
+        }
+    );
+}
+
+function addPhoto(photoData, coords) {
+    const newPhoto = {
+        photo: photoData,
+        location: coords,
+        timestamp: Date.now()
+    };
+    storedPhotos.push(newPhoto);
+    localStorage.setItem('photos', JSON.stringify(storedPhotos));
+    renderPhotos();
+}
 
 // Organizar fotos por año y mes
 function organizePhotos() {
@@ -55,7 +105,7 @@ function organizePhotos() {
     return organized;
 }
 
-// Renderizar fotos como "carpetas"
+// Renderizar fotos
 function renderPhotos() {
     photoContainer.innerHTML = '';
     const organized = organizePhotos();
@@ -79,7 +129,7 @@ function renderPhotos() {
             monthTitle.textContent = month;
             monthFolder.appendChild(monthTitle);
 
-            organized[year][month].forEach((photo, index) => {
+            organized[year][month].forEach((photo) => {
                 const photoItem = document.createElement('div');
                 photoItem.classList.add('photo-item');
 
@@ -130,7 +180,7 @@ document.getElementById('downloadButton').addEventListener('click', downloadSele
 document.getElementById('clearPhotosBtn').addEventListener('click', () => {
     if (confirm('¿Estás seguro de que quieres borrar todas las fotos?')) {
         localStorage.removeItem('photos');
-        storedPhotos.length = 0;
+        storedPhotos = [];
         renderPhotos();
         alert('Se han borrado todas las fotos.');
     }

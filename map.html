@@ -6,16 +6,14 @@
     <title>Mapa de Coordenadas</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
     <style>
-        #map {
-            height: 100vh;
-            width: 100%;
-        }
+        body { margin: 0; font-family: Arial, sans-serif; }
+        #map { height: 100vh; width: 100%; }
         .home-btn {
             position: absolute;
             top: 28px;
-            right: 28px; /* Cambiado de left a right */
+            right: 28px;
             z-index: 1000;
-            background: linear-gradient(90deg, #9fd5c9, #c9b6e4, #f7cde1);
+            background: linear-gradient(90deg, #f7cde1, #c9b6e4, #9fd5c9);
             color: #fff;
             font-weight: 700;
             border: none;
@@ -28,14 +26,17 @@
             text-shadow: 0 2px 8px rgba(0,0,0,0.18);
         }
         .home-btn:hover {
-            background: linear-gradient(90deg, #f7cde1, #c9b6e4, #9fd5c9);
             transform: scale(1.08);
+        }
+        .photo-popup img {
+            width: 120px;
+            border-radius: 10px;
+            margin-bottom: 5px;
         }
     </style>
 </head>
 <body>
 
-    <h1>Mapa Mundial</h1>
     <button id="homeButton" class="home-btn">Volver al inicio</button>
     <div id="map"></div>
 
@@ -45,27 +46,41 @@
             window.location.href = "index.html";
         };
 
-        // Crear un mapa centrado en el mundo
-        const map = L.map('map').setView([0, 0], 2); // Coordenadas [lat, long] y zoom nivel 2 para mapa mundial
+        // Crear el mapa centrado en el mundo
+        const map = L.map('map').setView([20, 0], 2);
 
-        // Agregar el mapa base
+        // Cargar el mapa base
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            attribution: '&copy; OpenStreetMap contributors'
         }).addTo(map);
 
-        // Obtener las coordenadas de las fotos desde localStorage
+        // Obtener fotos del localStorage
         const storedPhotos = JSON.parse(localStorage.getItem('photos')) || [];
 
-        // Función para agregar un marcador en el mapa
-        function addMarker(lat, lng, location) {
-            L.marker([lat, lng]).addTo(map)
-                .bindPopup(`<b>Foto tomada aquí</b><br>Coordenadas: ${lat}, ${lng}<br>Ubicación: ${location}`)
-                .openPopup();
-        }
+        storedPhotos.forEach(photo => {
+            let lat, lng;
 
-        // Agregar un marcador para cada foto almacenada
-        storedPhotos.forEach(({ coordinates, location }) => {
-            addMarker(coordinates.latitude, coordinates.longitude, location);
+            // Caso 1: si es string "lat,lng"
+            if (photo.location && typeof photo.location === "string" && photo.location.includes(",")) {
+                [lat, lng] = photo.location.split(",").map(n => parseFloat(n.trim()));
+            }
+
+            // Caso 2: si es objeto { latitude, longitude }
+            if (photo.coordinates && photo.coordinates.latitude && photo.coordinates.longitude) {
+                lat = parseFloat(photo.coordinates.latitude);
+                lng = parseFloat(photo.coordinates.longitude);
+            }
+
+            // Si tiene coordenadas válidas, mostrar marcador
+            if (!isNaN(lat) && !isNaN(lng)) {
+                L.marker([lat, lng]).addTo(map)
+                    .bindPopup(`
+                        <div class="photo-popup">
+                            <img src="${photo.photo}" alt="foto" />
+                            <p><b>Coordenadas:</b> ${lat.toFixed(5)}, ${lng.toFixed(5)}</p>
+                        </div>
+                    `);
+            }
         });
     </script>
 </body>

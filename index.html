@@ -3,44 +3,52 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Escáner QR y Captura de Fotos</title>
+    <title>Escáner QR, Fotos y Videos</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/exif-js"></script>
+    <style>
+        video { width: 80%; max-width: 500px; border: 2px solid #333; border-radius: 10px; }
+        .controls { margin-top: 15px; display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+        button { padding: 10px 20px; font-size: 16px; cursor: pointer; }
+    </style>
 </head>
 <body>
-    <h1>VIAJES, FOTOS Y MUCHO AMOR</h1>
-    <video id="video" autoplay></video>
+    <h1>📷 VIAJES, FOTOS, VIDEOS Y AMOR</h1>
+    <video id="video" autoplay playsinline></video>
     <div class="controls">
-        <button id="captureButton">Capturar Foto</button>
-        <button id="viewPhotosButton">Ver Fotos Capturadas</button>
-        <button id="viewMapButton">Ver Mapa Mundial</button>
-        <button id="toggleCameraButton">Cambiar Cámara</button>
+        <button id="captureButton">📸 Capturar Foto</button>
+        <button id="recordButton">⏺️ Grabar Video</button>
+        <button id="stopButton" disabled>⏹️ Detener Video</button>
+        <button id="viewPhotosButton">🖼️ Ver Fotos</button>
+        <button id="viewMapButton">🌍 Ver Mapa</button>
+        <button id="toggleCameraButton">🔄 Cambiar Cámara</button>
         <input type="file" id="uploadInput" accept="image/*" style="display:none;">
-        <button id="uploadButton">Subir Foto</button>
+        <button id="uploadButton">📤 Subir Foto</button>
     </div>
 
     <script>
         const video = document.getElementById("video");
         const captureButton = document.getElementById("captureButton");
+        const recordButton = document.getElementById("recordButton");
+        const stopButton = document.getElementById("stopButton");
         const viewPhotosButton = document.getElementById("viewPhotosButton");
         const viewMapButton = document.getElementById("viewMapButton");
         const toggleCameraButton = document.getElementById("toggleCameraButton");
         const uploadInput = document.getElementById("uploadInput");
         const uploadButton = document.getElementById("uploadButton");
 
-        let currentCamera = "environment"; // Cámara trasera por defecto
+        let currentCamera = "environment"; 
         let currentStream = null;
+        let mediaRecorder;
+        let videoChunks = [];
 
-        // Iniciar la cámara
+        // Iniciar cámara
         async function startCamera(camera = "environment") {
             try {
-                // Detener la cámara actual si existe
                 if (currentStream) {
-                    const tracks = currentStream.getTracks();
-                    tracks.forEach(track => track.stop());
+                    currentStream.getTracks().forEach(track => track.stop());
                 }
-
-                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: camera } });
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: camera }, audio: true });
                 currentStream = stream;
                 video.srcObject = stream;
             } catch (error) {
@@ -48,7 +56,7 @@
             }
         }
 
-        // Obtener las coordenadas y la dirección
+        // Geolocalización
         function getCoordinatesAndAddress() {
             return new Promise((resolve, reject) => {
                 if (navigator.geolocation) {
@@ -61,70 +69,76 @@
                             const street = address.road || "Desconocida";
                             const city = address.city || address.town || address.village || "Desconocido";
                             resolve({ latitude, longitude, street, city });
-                        } catch (error) {
+                        } catch {
                             reject(new Error("No se pudo obtener la dirección."));
                         }
-                    }, error => reject(error));
-                } else {
-                    reject(new Error("Geolocalización no soportada"));
-                }
+                    }, reject);
+                } else reject(new Error("Geolocalización no soportada"));
             });
         }
 
-        // Capturar foto y guardar con ubicación
+        // 📸 Capturar foto
         captureButton.addEventListener("click", async () => {
             const canvas = document.createElement("canvas");
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
-            canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+            canvas.getContext("2d").drawImage(video, 0, 0);
             const photoData = canvas.toDataURL("image/png");
 
-            let latitude = null;
-            let longitude = null;
-            let locationName = "Sin ubicación";
-
+            let latitude = null, longitude = null, locationName = "Sin ubicación";
             try {
                 const { latitude: lat, longitude: lon, street, city } = await getCoordinatesAndAddress();
-                latitude = lat;
-                longitude = lon;
+                latitude = lat; longitude = lon;
                 locationName = `Lat: ${latitude}, Lon: ${longitude} (${street}, ${city})`;
-            } catch (error) {
-                locationName = "Sin ubicación";
-            }
+            } catch {}
 
-            // Guardar las fotos en el localStorage
             const storedPhotos = JSON.parse(localStorage.getItem("photos")) || [];
             storedPhotos.push({ photo: photoData, coordinates: { latitude, longitude }, location: locationName });
             localStorage.setItem("photos", JSON.stringify(storedPhotos));
-
-            alert("Foto capturada y guardada.");
+            alert("✅ Foto capturada y guardada");
         });
 
-        // Ver fotos capturadas
-        viewPhotosButton.addEventListener("click", () => {
-            window.location.href = "photos.html"; // Redirige a la página de fotos
+        // 🎥 Grabar video
+        recordButton.addEventListener("click", () => {
+            if (!currentStream) return alert("No hay cámara activa");
+            mediaRecorder = new MediaRecorder(currentStream);
+            videoChunks = [];
+
+            mediaRecorder.ondataavailable = e => videoChunks.push(e.data);
+            mediaRecorder.onstop = () => {
+                const blob = new Blob(videoChunks, { type: "video/webm" });
+                const url = URL.createObjectURL(blob);
+                const storedVideos = JSON.parse(localStorage.getItem("videos")) || [];
+                storedVideos.push({ video: url, date: new Date().toISOString() });
+                localStorage.setItem("videos", JSON.stringify(storedVideos));
+                alert("🎬 Video guardado (localStorage).");
+            };
+
+            mediaRecorder.start();
+            recordButton.disabled = true;
+            stopButton.disabled = false;
         });
 
-        // Ver mapa
-        viewMapButton.addEventListener("click", () => {
-            window.location.href = "map.html"; // Redirige a la página del mapa
+        stopButton.addEventListener("click", () => {
+            mediaRecorder.stop();
+            recordButton.disabled = false;
+            stopButton.disabled = true;
         });
 
-        // Cambiar entre las cámaras (frontal y trasera)
-        toggleCameraButton.addEventListener("click", () => {
-            currentCamera = (currentCamera === "environment") ? "user" : "environment"; // Cambia entre "user" y "environment"
-            startCamera(currentCamera); // Reinicia la cámara con la nueva configuración
-        });
+        // Navegación
+        viewPhotosButton.onclick = () => window.location.href = "photos.html";
+        viewMapButton.onclick = () => window.location.href = "map.html";
 
-        // Subir foto desde el dispositivo
-        uploadButton.addEventListener("click", () => {
-            uploadInput.click();
-        });
+        // Cambiar cámara
+        toggleCameraButton.onclick = () => {
+            currentCamera = (currentCamera === "environment") ? "user" : "environment";
+            startCamera(currentCamera);
+        };
 
+        // Subida de fotos
+        uploadButton.onclick = () => uploadInput.click();
         uploadInput.addEventListener("change", function() {
-            const file = this.files[0];
-            if (!file) return;
-
+            const file = this.files[0]; if (!file) return;
             const reader = new FileReader();
             reader.onload = function(e) {
                 const img = new Image();
@@ -143,19 +157,13 @@
 
                         const latitude = toDecimal(lat, latRef);
                         const longitude = toDecimal(lon, lonRef);
+                        const locationName = (latitude && longitude) ? 
+                            `Lat: ${latitude}, Lon: ${longitude}` : "Sin coordenadas EXIF";
 
-                        const photoData = e.target.result;
-                        let locationName = "Sin coordenadas EXIF";
-                        if (latitude && longitude) {
-                            locationName = `Lat: ${latitude}, Lon: ${longitude}`;
-                        }
-
-                        // Guardar la foto en localStorage
                         const storedPhotos = JSON.parse(localStorage.getItem("photos")) || [];
-                        storedPhotos.push({ photo: photoData, coordinates: { latitude, longitude }, location: locationName });
+                        storedPhotos.push({ photo: e.target.result, coordinates: { latitude, longitude }, location: locationName });
                         localStorage.setItem("photos", JSON.stringify(storedPhotos));
-
-                        alert("Foto subida y guardada. " + locationName);
+                        alert("📤 Foto subida y guardada. " + locationName);
                     });
                 };
                 img.src = e.target.result;
@@ -163,7 +171,7 @@
             reader.readAsDataURL(file);
         });
 
-        // Iniciar la cámara al cargar la página (usando la cámara trasera por defecto)
+        // Iniciar cámara al cargar
         startCamera("environment");
     </script>
 </body>
